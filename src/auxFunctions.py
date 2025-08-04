@@ -1,49 +1,109 @@
 import os
 import time
+import re
 from datetime import datetime
 import piexif
 from fractions import Fraction
+import logging
+from tqdm import tqdm
+import io
+from pathlib import Path
 
+logger = logging.getLogger(__name__)
 
-# Credit: https://stackoverflow.com/questions/3173320/text-progress-bar-in-terminal-with-block-characters
+piexifCodecs = [k.casefold() for k in ['TIF', 'TIFF', 'JPEG', 'JPG', 'HEIC', 'PNG']]
+
+class TqdmToLogger(io.StringIO):
+    """
+    Output stream for tqdm which will output to logger module instead of stdout.
+    """
+    def __init__(self, logger, level=logging.INFO):
+        super(TqdmToLogger, self).__init__()
+        self.logger = logger
+        self.level = level
+        self.buf = ""
+        
+    def write(self, buf):
+        self.buf = buf.strip('\r\n\t ')
+        
+    def flush(self):
+        if self.buf:
+            self.logger.log(self.level, self.buf)
+
 def progressBar(iterable, prefix = '', suffix = '', decimals = 1, length = 100, fill = '█', printEnd = "\r", upLines = 0):
-    UP = "\x1B[" + str(upLines + 1) + "A"
-
-    total = len(iterable)
-    # Progress Bar Printing Function
-    def printProgressBar (iteration):
-        percent = ("{0:." + str(decimals) + "f}").format(100 * (iteration / float(total)))
-        filledLength = int(length * iteration // total)
-        bar = fill * filledLength + '-' * (length - filledLength)
-
-        print(f'\r{prefix} |{bar}| {percent}% {suffix}', end = printEnd)
-    # Initial Call
-    printProgressBar(0)
-    # Update Progress Bar
-    for i, item in enumerate(iterable):
+    """
+    Creates a progress bar for an iterable using tqdm with logging.
+    Returns a generator that yields items from the iterable while updating the progress bar.
+    
+    Parameters are kept for backward compatibility but most are handled by tqdm directly.
+    """
+    # Create a tqdm progress bar with logger as output
+    tqdm_out = TqdmToLogger(logger)
+    for item in tqdm(iterable, 
+                     desc=prefix,
+                     file=tqdm_out,
+                     leave=True, 
+                     ncols=length+20,
+                     bar_format='{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}, {rate_fmt}]'):
         yield item
-        print(UP)
-        printProgressBar(i + 1)
-    # Print New Line on Complete
-    print()
 
 # Function to search media associated to the JSON
-def searchMedia(path, title, editedWord):
-    title = fixTitle(title)
+def searchMedia(path, item: Path, editedWord):
+    file_stem = item.stem
+
+    title = fixTitle(file_stem)
 
     (file_name, ext) = os.path.splitext(title)
 
+    # Process with three separate regex patterns for clarity
+    title_no_o = re.sub(r'\._o?$', '', title)
+    title_no_metadata = re.sub(r'\.supplemental-metadata', '', title_no_o)
+    title_fixed = re.sub(r'\.supp(\w*(-\w*)?)?', '', title_no_metadata)
+
     possible_titles = [
         title,
-        str(file_name + "-" + editedWord + "." + ext),
-        str(file_name + "(1)." + ext),
+        title_fixed,
+        file_name,
+        f"{file_name}_",
+        f"{title}_",
+        f"{title_fixed}_",
     ]
+    suffixes = {ext.lstrip(".") for ext in item.suffixes}
+    suffixes = suffixes.intersection(piexifCodecs)
+    if not suffixes:
+        suffixes = set(piexifCodecs)
 
-    for title in possible_titles:
-        filepath = os.path.join(path, title)
+    for ext in suffixes:
+        possible_titles.extend([
+                f"{title_fixed}.{ext}",
+                f"{file_name}.{ext}",
+                f"{file_name}-{editedWord}.{ext}",
+                f"{file_name}(1).{ext}",
+                f"{title}_.{ext}",
+                f"{title_fixed}_.{ext}",
+                f"{title}_o.{ext}",
+                f"{title_fixed}_o.{ext}",
+            ])
 
-        if os.path.exists(filepath):
-            return filepath
+    media_candidates = [Path(path) / title for title in possible_titles]
+
+    # add glob retrieved files
+    media_candidates.extend([
+        f for f in Path(path).glob(f"{file_stem}*") 
+        if f.is_file() and ".json" not in f.suffixes
+    ])
+
+    media_path = None
+    for filepath in media_candidates:
+        if filepath.exists():
+            media_path = filepath
+            break
+
+    if not media_path:
+        logger.warning(f"Media file not found for: {title}")
+
+    return media_path
+    
 
 # Supress incompatible characters
 def fixTitle(title):

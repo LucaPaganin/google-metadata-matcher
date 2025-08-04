@@ -1,43 +1,73 @@
 import os
+from pathlib import Path
 from auxFunctions import *
 import json
+import logging
 from PIL import Image
 from pillow_heif import register_heif_opener
 
-register_heif_opener()
+logger = logging.getLogger(__name__)
 
-CLR = "\x1B[0K"
-CURSOR_UP_FACTORY = lambda upLines : "\x1B[" + str(upLines) + "A"
-CURSOR_DOWN_FACTORY = lambda upLines : "\x1B[" + str(upLines) + "B"
+register_heif_opener()
 
 OrientationTagID = 274
 
-piexifCodecs = [k.casefold() for k in ['TIF', 'TIFF', 'JPEG', 'JPG', 'HEIC', 'PNG']]
-
 def get_images_from_folder(folder: str, edited_word: str):
+    """
+    Recursively finds JSON metadata files in a folder and its subfolders,
+    and matches them with their corresponding media files.
+    
+    Args:
+        folder: The folder path to search in
+        edited_word: The suffix used for edited images (e.g. 'edited')
+        
+    Returns:
+        A list of tuples (json_path, media_path) where media_path may be None if not found
+    """
     files: list[tuple[str, str]] = []
-    folder_entries = list(os.scandir(folder))
-
-    for entry in folder_entries:
-        if entry.is_dir():
-            files = files + get_images_from_folder(entry.path, edited_word)
+    folder_path = Path(folder)
+    
+    # Iterate through all items in the directory
+    for item in folder_path.iterdir():
+        # Recursively process subdirectories
+        if item.is_dir():
+            files.extend(get_images_from_folder(str(item), edited_word))
             continue
-
-        if entry.is_file():
-            (file_name, ext) = os.path.splitext(entry.name)
-
-            if ext == ".json" and file_name != "metadata":
-                file = searchMedia(folder, file_name, edited_word)
-                files.append((entry.path, file))
-
+            
+        # Process JSON files
+        if item.is_file() and item.suffix.lower() == ".json" and item.stem != "metadata":
+            # Search for the corresponding media file
+            media_file = searchMedia(str(folder_path), item, edited_word)
+            # Add the tuple of (json_path, media_path) to our results
+            files.append((str(item), media_file))
+    
     return files
 
 def get_output_filename(root_folder, out_folder, image_path):
-    (image_name, ext) = os.path.splitext(os.path.basename(image_path))
-    new_image_name = image_name + ".jpg"
-    image_path_dir = os.path.dirname(image_path)
-    relative_to_new_image_folder = os.path.relpath(image_path_dir, root_folder)
-    return os.path.join(out_folder, relative_to_new_image_folder, new_image_name)
+    """
+    Generates the output file path for a processed image.
+    
+    Args:
+        root_folder: The source root folder path
+        out_folder: The destination root folder path
+        image_path: The original image file path
+        
+    Returns:
+        The path where the processed image should be saved
+    """
+    # Convert string paths to Path objects
+    root_path = Path(root_folder)
+    out_path = Path(out_folder)
+    image_path_obj = Path(image_path)
+    
+    # Get filename without extension and add .jpg extension
+    new_image_name = image_path_obj.stem + ".jpg"
+    
+    # Calculate relative path from root folder
+    relative_path = image_path_obj.parent.relative_to(root_path)
+    
+    # Build output path
+    return str(out_path / relative_path / new_image_name)
 
 def processFolder(root_folder: str, edited_word: str, optimize: int, out_folder: str, max_dimension):
     errorCounter = 0
@@ -45,24 +75,25 @@ def processFolder(root_folder: str, edited_word: str, optimize: int, out_folder:
 
     images = get_images_from_folder(root_folder, edited_word)
 
-    print("Total images found:", len(images))
+    logger.info(f"Total images found: {len(images)}")
 
-    for entry in progressBar(images, upLines = 2):
+    for entry in progressBar(images):
         metadata_path = entry[0]
         image_path = entry[1]
 
-        print("\n", "Current file:", image_path, CLR)
+        logger.info(f"Current file: {image_path}")
 
         if not image_path:
-            print(CURSOR_UP_FACTORY(2), "Missing image for:", metadata_path, CLR, CURSOR_DOWN_FACTORY(2))
-
+            logger.warning(f"Missing image for: {metadata_path}")
             errorCounter += 1
             continue
 
-        (_, ext) = os.path.splitext(image_path)
+        # Use Path object for extension extraction
+        image_path_obj = Path(image_path)
+        ext = image_path_obj.suffix
 
         if not ext[1:].casefold() in piexifCodecs:
-            print(CURSOR_UP_FACTORY(2), 'Photo format is not supported:', image_path, CLR, CURSOR_DOWN_FACTORY(2))
+            logger.warning(f"Photo format is not supported: {image_path}")
             errorCounter += 1
             continue
         
@@ -83,10 +114,9 @@ def processFolder(root_folder: str, edited_word: str, optimize: int, out_folder:
 
         new_image_path = get_output_filename(root_folder, out_folder, image_path)
 
-        dir = os.path.dirname(new_image_path)
-
-        if not os.path.exists(dir):
-            os.makedirs(dir)
+        # Create output directory if it doesn't exist
+        output_dir = Path(new_image_path).parent
+        output_dir.mkdir(parents=True, exist_ok=True)
 
         with open(metadata_path, encoding="utf8") as f: 
             metadata = json.load(f)
@@ -105,8 +135,7 @@ def processFolder(root_folder: str, edited_word: str, optimize: int, out_folder:
 
         successCounter += 1
 
-    print()
-    print('Metadata merging has been finished')
-    print('Success', successCounter)
-    print('Failed', errorCounter)
+    logger.info("Metadata merging has been finished")
+    logger.info(f"Success: {successCounter}")
+    logger.info(f"Failed: {errorCounter}")
 
