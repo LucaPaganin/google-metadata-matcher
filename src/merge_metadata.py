@@ -14,14 +14,17 @@ def dimension(s):
         raise argparse.ArgumentTypeError("Dimension must be width,height")
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser(
+        description="Process Google Photos metadata and apply it to media files (images and videos)"
+    )
 
-    parser.add_argument('source_folder')
-    parser.add_argument('output_folder')
+    parser.add_argument('source_folder', help="Source folder containing Google Photos takeout data")
+    parser.add_argument('output_folder', help="Output folder for processed media files")
     parser.add_argument('-w',  '--edited_word', default='edited', help="Google Photos 'edited' word translation")
-    parser.add_argument('-o',  '--optimize', type=int, default=100, help='Optimalize the images (0 to 100), recommended: 75 (default: disabled)')
-    parser.add_argument('-m',  '--max_dimension', type=dimension, help="Resize the image restricting the max width,height dimension")
+    parser.add_argument('-o',  '--optimize', type=int, default=100, help='Optimize images (0 to 100), recommended: 75 (default: 100)')
+    parser.add_argument('-m',  '--max_dimension', type=dimension, help="Resize images restricting the max width,height dimension (e.g., 1920,1080)")
     parser.add_argument('-v', '--verbose', action='store_true', help='Enable verbose logging')
+    parser.add_argument('--videos', action='store_true', default=True, help='Process video files (creates sidecar metadata files, default: enabled)')
 
     args = parser.parse_args()
 

@@ -11,7 +11,14 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
+# Image formats that can be processed with piexif
 piexifCodecs = [k.casefold() for k in ['TIF', 'TIFF', 'JPEG', 'JPG', 'HEIC', 'PNG']]
+
+# Video formats that should be copied without image processing
+videoCodecs = [k.casefold() for k in ['MOV', 'MP4', 'AVI', 'MKV', 'WEBM', '3GP']]
+
+# All supported media formats
+mediaCodecs = piexifCodecs + videoCodecs
 
 class TqdmToLogger(io.StringIO):
     """
