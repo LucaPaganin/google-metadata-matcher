@@ -21,7 +21,7 @@ register_heif_opener()
 
 OrientationTagID = 274
 
-def get_images_from_folder(folder: str, edited_word: str):
+def get_images_from_folder(folder: str, edited_word: str, notfound_media: list):
     """
     Recursively finds JSON metadata files in a folder and its subfolders,
     and matches them with their corresponding media files.
@@ -40,13 +40,13 @@ def get_images_from_folder(folder: str, edited_word: str):
     for item in folder_path.iterdir():
         # Recursively process subdirectories
         if item.is_dir():
-            files.extend(get_images_from_folder(str(item), edited_word))
+            files.extend(get_images_from_folder(str(item), edited_word, notfound_media))
             continue
             
         # Process JSON files
         if item.is_file() and item.suffix.lower() == ".json" and item.stem != "metadata":
             # Search for the corresponding media file
-            media_file = searchMedia(str(folder_path), item, edited_word)
+            media_file = searchMedia(str(folder_path), item, edited_word, notfound_media)
             # Add the tuple of (json_path, media_path) to our results
             files.append((str(item), media_file))
     
@@ -70,9 +70,10 @@ def processFolder(root_folder: str, edited_word: str, optimize: int, out_folder:
         optimize=optimize,
         max_dimension=max_dimension
     )
-    
+
+    notfound_media = []
     # Get all media files with their metadata
-    images = get_images_from_folder(root_folder, edited_word)
+    images = get_images_from_folder(root_folder, edited_word, notfound_media)
     
     logger.info(f"Total media files found: {len(images)}")
     
@@ -98,4 +99,6 @@ def processFolder(root_folder: str, edited_word: str, optimize: int, out_folder:
     logger.info(f"Success: {success_count} media files processed")
     logger.info(f"Failed: {error_count} media files")
     logger.info("Videos have been processed with ffmpeg to embed metadata directly")
-
+    logger.info(f"Media files not found: {len(notfound_media)}")
+    for item in notfound_media:
+        logger.info(f" - {item}")

@@ -55,24 +55,17 @@ def progressBar(iterable, prefix = '', suffix = '', decimals = 1, length = 100, 
         yield item
 
 # Function to search media associated to the JSON
-def searchMedia(path, item: Path, editedWord):
+def searchMedia(path, item: Path, editedWord: str, notfound_media: list):
     file_stem = item.stem
 
-    title = fixTitle(file_stem)
+    title_fixed = fixTitle(file_stem)
 
-    (file_name, ext) = os.path.splitext(title)
-
-    # Process with three separate regex patterns for clarity
-    title_no_o = re.sub(r'\._o?$', '', title)
-    title_no_metadata = re.sub(r'\.supplemental-metadata', '', title_no_o)
-    title_fixed = re.sub(r'\.supp(\w*(-\w*)?)?', '', title_no_metadata)
+    (file_name, ext) = os.path.splitext(title_fixed)
 
     possible_titles = [
-        title,
-        title_fixed,
         file_name,
         f"{file_name}_",
-        f"{title}_",
+        title_fixed,
         f"{title_fixed}_",
     ]
     suffixes = {ext.lstrip(".") for ext in item.suffixes}
@@ -82,21 +75,19 @@ def searchMedia(path, item: Path, editedWord):
 
     for ext in suffixes:
         possible_titles.extend([
-                f"{title_fixed}.{ext}",
                 f"{file_name}.{ext}",
                 f"{file_name}-{editedWord}.{ext}",
                 f"{file_name}(1).{ext}",
-                f"{title}_.{ext}",
+                f"{title_fixed}.{ext}",
                 f"{title_fixed}_.{ext}",
-                f"{title}_o.{ext}",
-                f"{title_fixed}_o.{ext}",
+                f"{title_fixed}_o.{ext}"
             ])
 
     media_candidates = [Path(path) / title for title in possible_titles]
 
     # add glob retrieved files
     media_candidates.extend([
-        f for f in Path(path).glob(f"{file_stem}*") 
+        f for f in Path(path).glob(f"*{title_fixed}*") 
         if f.is_file() and ".json" not in f.suffixes
     ])
 
@@ -107,16 +98,24 @@ def searchMedia(path, item: Path, editedWord):
             break
 
     if not media_path:
-        logger.warning(f"Media file not found for: {title}")
+        logger.warning(f"Media file not found for metadata file with original name '{item.name}', title fixed is '{title_fixed}'")
+        notfound_media.append(path / item.name)
 
     return media_path
     
 
 # Supress incompatible characters
 def fixTitle(title):
-    return str(title).replace("%", "").replace("<", "").replace(">", "").replace("=", "").replace(":", "").replace("?","").replace(
+    res = str(title).replace("%", "").replace("<", "").replace(">", "").replace("=", "").replace(":", "").replace("?","").replace(
         "¿", "").replace("*", "").replace("#", "").replace("&", "").replace("{", "").replace("}", "").replace("\\", "").replace(
         "@", "").replace("!", "").replace("¿", "").replace("+", "").replace("|", "").replace("\"", "").replace("\'", "")
+
+    # Process with three separate regex patterns for clarity
+    res = re.sub(r'\._o?$', '', res)
+    res = re.sub(r'\.supplemental-metadata', '', res)
+    res = re.sub(r'\.supp(\w*(-\w*)?)?', '', res)
+
+    return res
 
 # Recursive function to search name if its repeated
 def checkIfSameName(title, titleFixed, matchedFiles, recursionTime):

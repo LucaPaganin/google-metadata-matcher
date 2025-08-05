@@ -13,7 +13,8 @@
             "console": "integratedTerminal",
             "args": [
                 "C:/Users/lucap/Downloads/GTakeout/Takeout/GooglePhotos/",
-                "C:/Users/lucap/Downloads/GoogleWithMetadata/"
+                "C:/Users/lucap/Downloads/GoogleWithMetadata/",
+                "--verbose"
             ]
         }
     ]
