@@ -12,8 +12,8 @@
             "program": "${workspaceFolder}/src/merge_metadata.py",
             "console": "integratedTerminal",
             "args": [
-                "C:/Users/lucap/Downloads/GTakeout/Takeout/GooglePhotos/Amici",
-                "C:/Users/lucap/Downloads/GoogleWithMetadata/Amici"
+                "C:/Users/lucap/Downloads/GTakeout/Takeout/GooglePhotos/",
+                "C:/Users/lucap/Downloads/GoogleWithMetadata/"
             ]
         }
     ]
