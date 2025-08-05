@@ -37,6 +37,9 @@ optional arguments:
 - Video support (MOV, MP4, AVI, MKV, etc.)
 - Resize option for images
 - Optimization option for images
+- Modern path handling with pathlib.Path
+- Progress bars with tqdm
+- Comprehensive logging
 
 ## Media Handling
 
@@ -47,7 +50,7 @@ optional arguments:
 
 ### Videos
 - Preserved in their original format
-- Metadata directly embedded using ffmpeg:
+- Metadata directly embedded using FFmpeg through python-ffmpeg:
   - Creation timestamp
   - GPS coordinates (latitude, longitude, altitude)
 - Backup metadata stored in sidecar JSON files
@@ -59,6 +62,19 @@ optional arguments:
 - pillow-heif - Image Editor lib HEIC (Apple) support
 - piexif - Adjust Metadata for image
 - python-ffmpeg - Modern FFmpeg binding for video metadata
+- tqdm - Progress bar visualization
+- logging - Comprehensive logging system
+
+## Prerequisites
+
+- Python 3.6+
+- FFmpeg installed on your system (for video processing)
+
+## Installation
+
+```bash
+pip install -r requirements.txt
+```
 
 ## Tutorial
 

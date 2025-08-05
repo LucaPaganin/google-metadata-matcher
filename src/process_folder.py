@@ -131,25 +131,7 @@ def processFolder(root_folder: str, edited_word: str, optimize: int, out_folder:
                     date_str = datetime.datetime.fromtimestamp(timeStamp).strftime('%Y-%m-%d %H:%M:%S')
                     
                     # Prepare metadata to be added to the video
-                    metadata_dict = {
-                        'creation_time': date_str
-                    }
-                    
-                    # Add geo metadata if available
-                    if 'geoData' in metadata and 'latitude' in metadata['geoData'] and 'longitude' in metadata['geoData']:
-                        lat = metadata['geoData']['latitude']
-                        lng = metadata['geoData']['longitude']
-                        altitude = metadata['geoData'].get('altitude', 0)
-                        
-                        # Add location data to metadata
-                        metadata_dict.update({
-                            'location': f"{lat} {lng}",
-                            'latitude': str(lat),
-                            'longitude': str(lng),
-                            'altitude': str(altitude)
-                        })
-                        
-                        logger.info(f"Adding geo metadata to video: lat={lat}, lng={lng}, alt={altitude}")
+                    date_str = datetime.datetime.fromtimestamp(timeStamp).strftime('%Y-%m-%d %H:%M:%S')
                     
                     # Create output directory if it doesn't exist
                     output_dir = Path(new_media_path).parent
@@ -166,18 +148,35 @@ def processFolder(root_folder: str, edited_word: str, optimize: int, out_folder:
                         # Copy the input file first
                         shutil.copy2(image_path, temp_path)
                         
-                        # Build metadata arguments
-                        ffmpeg_metadata = {}
-                        for key, value in metadata_dict.items():
-                            ffmpeg_metadata[f"metadata:{key}"] = value
-                        
-                        # Create FFmpeg instance
+                        # Create FFmpeg instance with metadata arguments
                         ffmpeg_process = (
                             FFmpeg()
                             .option("y")  # Overwrite output file if it exists
                             .input(temp_path)
-                            .output(new_media_path, codec="copy", **ffmpeg_metadata)
+                            .output(
+                                new_media_path, 
+                                {
+                                    "c": "copy",  # Use codec copy (no re-encoding)
+                                    # Add metadata directly as options
+                                    "metadata:creation_time": date_str
+                                }
+                            )
                         )
+                        
+                        # Add geo metadata if available
+                        if 'geoData' in metadata and 'latitude' in metadata['geoData'] and 'longitude' in metadata['geoData']:
+                            lat = metadata['geoData']['latitude']
+                            lng = metadata['geoData']['longitude']
+                            altitude = metadata['geoData'].get('altitude', 0)
+                            
+                            # Add location metadata to the output options
+                            location_str = f"{lat} {lng}"
+                            ffmpeg_process.output_options({
+                                "metadata:location": location_str,
+                                "metadata:latitude": str(lat),
+                                "metadata:longitude": str(lng),
+                                "metadata:altitude": str(altitude)
+                            })
                         
                         # Execute FFmpeg
                         ffmpeg_process.execute()
